@@ -144,6 +144,11 @@ def get_muon_momentum(it):
     frac = min(it / 300, 1)
     return (1 - frac) * 0.85 + frac * 0.95
 
+# Sync all ranks before training (compilation may finish at different times)
+if ddp:
+    import torch.distributed as dist
+    dist.barrier()
+
 # Training loop
 min_val_bpb = float("inf")
 smooth_train_loss = 0
