@@ -16,7 +16,7 @@ mkdir -p $NANOCODE_BASE_DIR
 # -----------------------------------------------------------------------------
 # Python venv setup with uv
 
-command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
+command -v uv &> /dev/null || { curl -LsSf https://astral.sh/uv/install.sh | sh && source $HOME/.local/bin/env; }
 [ -d ".venv" ] || uv venv
 uv sync
 source .venv/bin/activate
@@ -30,6 +30,8 @@ fi
 echo "============================================"
 echo "  Nanocode Speedrun"
 echo "  Base dir: $NANOCODE_BASE_DIR"
+NUM_GPUS=$(python -c "import torch; print(torch.cuda.device_count())")
+echo "  GPUs: $NUM_GPUS"
 echo "  wandb run: $WANDB_RUN"
 echo "============================================"
 
@@ -68,11 +70,12 @@ echo "Waiting for dataset download to complete..."
 wait $DATASET_DOWNLOAD_PID
 
 # Pretrain d12 model (~124M params) with 50% FIM rate
-torchrun --standalone --nproc_per_node=8 -m scripts.base_train -- \
-    --depth=12 \
-    --fim_rate=0.5 \
-    --fim_spm_rate=0.5 \
-    --run=$WANDB_RUN
+if [ "$NUM_GPUS" -gt 1 ]; then
+    torchrun --standalone --nproc_per_node=$NUM_GPUS -m scripts.base_train -- \
+        --depth=12 --fim_rate=0.5 --fim_spm_rate=0.5 --run=$WANDB_RUN
+else
+    python -m scripts.base_train --depth=12 --fim_rate=0.5 --fim_spm_rate=0.5 --run=$WANDB_RUN
+fi
 
 # -----------------------------------------------------------------------------
 # Step 4: Evaluate base model
@@ -81,11 +84,19 @@ echo ">>> Step 4: Evaluating base model..."
 echo ""
 
 # Perplexity + FIM samples
-torchrun --standalone --nproc_per_node=8 -m scripts.base_eval
+if [ "$NUM_GPUS" -gt 1 ]; then
+    torchrun --standalone --nproc_per_node=$NUM_GPUS -m scripts.base_eval
+else
+    python -m scripts.base_eval
+fi
 
 # HumanEval + MBPP (expect near-zero for base model)
-torchrun --standalone --nproc_per_node=8 -m scripts.code_eval -- \
-    -i base -a all --num-samples=1
+if [ "$NUM_GPUS" -gt 1 ]; then
+    torchrun --standalone --nproc_per_node=$NUM_GPUS -m scripts.code_eval -- \
+        -i base -a all --num-samples=1
+else
+    python -m scripts.code_eval -i base -a all --num-samples=1
+fi
 
 # -----------------------------------------------------------------------------
 # Step 5: SFT on code instructions
@@ -93,7 +104,11 @@ echo ""
 echo ">>> Step 5: Running code SFT..."
 echo ""
 
-torchrun --standalone --nproc_per_node=8 -m scripts.code_sft -- --run=$WANDB_RUN
+if [ "$NUM_GPUS" -gt 1 ]; then
+    torchrun --standalone --nproc_per_node=$NUM_GPUS -m scripts.code_sft -- --run=$WANDB_RUN
+else
+    python -m scripts.code_sft --run=$WANDB_RUN
+fi
 
 # -----------------------------------------------------------------------------
 # Step 6: Evaluate SFT model
@@ -102,8 +117,12 @@ echo ">>> Step 6: Evaluating SFT model..."
 echo ""
 
 # HumanEval + MBPP with multiple samples for pass@k
-torchrun --standalone --nproc_per_node=8 -m scripts.code_eval -- \
-    -i sft -a all --num-samples=10 --temperature=0.8
+if [ "$NUM_GPUS" -gt 1 ]; then
+    torchrun --standalone --nproc_per_node=$NUM_GPUS -m scripts.code_eval -- \
+        -i sft -a all --num-samples=10 --temperature=0.8
+else
+    python -m scripts.code_eval -i sft -a all --num-samples=10 --temperature=0.8
+fi
 
 # -----------------------------------------------------------------------------
 # Step 7: Agent demo
