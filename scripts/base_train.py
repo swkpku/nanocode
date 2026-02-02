@@ -16,7 +16,7 @@ import torch
 
 from nanocode.gpt import GPT, GPTConfig
 from nanocode.dataloader import tokenizing_distributed_data_loader
-from nanocode.common import compute_init, compute_cleanup, print0, DummyWandb, print_banner, get_base_dir
+from nanocode.common import compute_init, compute_cleanup, print0, DummyWandb, print_banner, get_base_dir, get_gpu_flops
 from nanocode.tokenizer import get_tokenizer, get_token_bytes
 from nanocode.checkpoint_manager import save_checkpoint
 from nanocode.loss_eval import evaluate_bpb
@@ -249,7 +249,7 @@ for step in range(num_iterations + 1):
     pct_done = 100 * step / num_iterations
     tok_per_sec = int(world_tokens_per_fwdbwd / dt)
     flops_per_sec = num_flops_per_token * total_batch_size / dt
-    promised_flops = 989e12 * ddp_world_size
+    promised_flops = get_gpu_flops() * ddp_world_size
     mfu = 100 * flops_per_sec / promised_flops
     if step > 10:
         total_training_time += dt

@@ -98,6 +98,29 @@ def compute_init():
         logger.info(f"Distributed world size: {ddp_world_size}")
     return ddp, ddp_rank, ddp_local_rank, ddp_world_size, device
 
+def get_gpu_flops():
+    """Return peak bf16 FLOPS for the current GPU."""
+    gpu_name = torch.cuda.get_device_name()
+    # Peak bf16 TFLOPS (tensor cores) for common GPUs
+    flops_map = {
+        "H100 SXM": 989e12,
+        "H100 PCIe": 756e12,
+        "H100 NVL": 835e12,
+        "A100 SXM": 312e12,
+        "A100 PCIe": 312e12,
+        "A100-SXM": 312e12,
+        "A100-PCIE": 312e12,
+        "L40S": 362e12,
+        "A10G": 70e12,
+        "RTX 4090": 330e12,
+        "RTX 3090": 71e12,
+    }
+    for key, flops in flops_map.items():
+        if key in gpu_name:
+            return flops
+    logger.warning(f"Unknown GPU '{gpu_name}', assuming H100 SXM FLOPS for MFU calculation")
+    return 989e12
+
 def compute_cleanup():
     """Companion function to compute_init."""
     if is_ddp():
