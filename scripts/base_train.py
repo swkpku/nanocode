@@ -94,18 +94,20 @@ with torch.device("meta"):
 model.to_empty(device="cuda")
 model.init_weights()
 orig_model = model
-model = torch.compile(model, dynamic=False)
-
-# Warmup: trigger compilation on all ranks simultaneously before any collective ops
-print0("Compiling model (this may take several minutes)...")
-with autocast_ctx:
-    _warmup_x = torch.randint(0, vocab_size, (device_batch_size, max_seq_len), device="cuda", dtype=torch.int32)
-    _warmup_y = torch.randint(0, vocab_size, (device_batch_size, max_seq_len), device="cuda", dtype=torch.int64)
-    _warmup_loss = model(_warmup_x, _warmup_y)
-    _warmup_loss.backward()
-    model.zero_grad(set_to_none=True)
-    del _warmup_x, _warmup_y, _warmup_loss
-print0("Compilation complete.")
+if ddp_world_size == 1:
+    model = torch.compile(model, dynamic=False)
+    # Warmup: trigger compilation
+    print0("Compiling model (this may take several minutes)...")
+    with autocast_ctx:
+        _warmup_x = torch.randint(0, vocab_size, (device_batch_size, max_seq_len), device="cuda", dtype=torch.int32)
+        _warmup_y = torch.randint(0, vocab_size, (device_batch_size, max_seq_len), device="cuda", dtype=torch.int64)
+        _warmup_loss = model(_warmup_x, _warmup_y)
+        _warmup_loss.backward()
+        model.zero_grad(set_to_none=True)
+        del _warmup_x, _warmup_y, _warmup_loss
+    print0("Compilation complete.")
+else:
+    print0("Skipping torch.compile for multi-GPU (using eager mode)")
 
 num_params = sum(p.numel() for p in model.parameters())
 print0(f"Number of parameters: {num_params:,}")
