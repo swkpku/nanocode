@@ -90,7 +90,9 @@ def compute_init():
     if ddp:
         device = torch.device("cuda", ddp_local_rank)
         torch.cuda.set_device(device)
-        dist.init_process_group(backend="nccl", device_id=device)
+        import datetime
+        dist.init_process_group(backend="nccl", device_id=device,
+                                timeout=datetime.timedelta(minutes=30))
         dist.barrier()
     else:
         device = torch.device("cuda")
