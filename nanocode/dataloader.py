@@ -41,9 +41,13 @@ def tokenizing_distributed_data_loader(B, T, split, fim_rate=0.5, fim_spm_rate=0
     scratch = torch.empty(needed_tokens, dtype=torch.int64, pin_memory=True)
 
     # Infinite iterator over document batches
+    # Val: all ranks read the same data (val set is tiny, no need to shard)
+    # Train: shard across ranks for efficiency
+    start = ddp_rank if split == "train" else 0
+    step = ddp_world_size if split == "train" else 1
     def document_batches():
         while True:
-            for batch in multi_language_iter_batched(split=split, start=ddp_rank, step=ddp_world_size):
+            for batch in multi_language_iter_batched(split=split, start=start, step=step):
                 for i in range(0, len(batch), tokenizer_batch_size):
                     yield batch[i:i+tokenizer_batch_size]
     batches = document_batches()
