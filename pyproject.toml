@@ -1,0 +1,36 @@
+[project]
+name = "nanocode"
+version = "0.1.0"
+description = "the minimal full-stack coding LLM training harness"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "datasets>=4.0.0",
+    "numpy>=1.26.4",
+    "psutil>=7.1.0",
+    "regex>=2025.9.1",
+    "tiktoken>=0.11.0",
+    "tokenizers>=0.22.0",
+    "torch>=2.4.0",
+    "wandb>=0.21.3",
+    "pyarrow>=15.0.0",
+    "requests>=2.31.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["nanocode*", "tasks*"]
+
+# target torch to cuda 12.8 on linux only
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
