@@ -203,8 +203,8 @@ for step in range(num_iterations + 1):
         print0()
         model.train()
 
-    # Save checkpoint
-    if master_process and last_step:
+    # Save checkpoint (every eval + last step)
+    if master_process and (last_step or step % eval_every == 0):
         output_dirname = model_tag if model_tag else f"d{depth}"
         checkpoint_dir = os.path.join(get_base_dir(), "base_checkpoints", output_dirname)
         save_checkpoint(
