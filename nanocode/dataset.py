@@ -106,9 +106,14 @@ def parquets_iter_batched(split="train", start=0, step=1, language=None):
     if not parquet_paths:
         return
     parquet_paths = parquet_paths[:-1] if split == "train" else parquet_paths[-1:]
+    if split == "train" and step > 1:
+        # Shard by file index so ranks don't starve when each file has a single row group.
+        sharded_paths = [p for i, p in enumerate(parquet_paths) if i % step == start]
+        if sharded_paths:
+            parquet_paths = sharded_paths
     for filepath in parquet_paths:
         pf = pq.ParquetFile(filepath)
-        for rg_idx in range(start, pf.num_row_groups, step):
+        for rg_idx in range(pf.num_row_groups):
             rg = pf.read_row_group(rg_idx)
             if 'content' in rg.column_names:
                 texts = rg.column('content').to_pylist()

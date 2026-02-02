@@ -41,6 +41,11 @@ unembedding_lr = 0.004
 weight_decay = 0.0
 matrix_lr = 0.02
 grad_clip = 1.0
+# torch.compile
+compile_model = True
+compile_dynamic = False
+compile_backend = "inductor"
+compile_mode = None  # e.g. "reduce-overhead" or "max-autotune"
 # FIM
 fim_rate = 0.5 # probability of FIM per document
 fim_spm_rate = 0.5 # probability of SPM vs PSM when FIM applied
@@ -94,8 +99,13 @@ with torch.device("meta"):
 model.to_empty(device="cuda")
 model.init_weights()
 orig_model = model
-if ddp_world_size == 1:
-    model = torch.compile(model, dynamic=False)
+if compile_model:
+    compile_kwargs = dict(dynamic=compile_dynamic)
+    if compile_backend:
+        compile_kwargs["backend"] = compile_backend
+    if compile_mode:
+        compile_kwargs["mode"] = compile_mode
+    model = torch.compile(model, **compile_kwargs)
     # Warmup: trigger compilation
     print0("Compiling model (this may take several minutes)...")
     with autocast_ctx:
@@ -107,7 +117,7 @@ if ddp_world_size == 1:
         del _warmup_x, _warmup_y, _warmup_loss
     print0("Compilation complete.")
 else:
-    print0("Skipping torch.compile for multi-GPU (using eager mode)")
+    print0("Skipping torch.compile (using eager mode)")
 
 num_params = sum(p.numel() for p in model.parameters())
 print0(f"Number of parameters: {num_params:,}")
